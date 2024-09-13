@@ -37,17 +37,13 @@ def train_epoch(args, loader, epoch, model, model_dp, model_ema, ema, device, dt
             eps = sample_center_gravity_zero_gaussian_with_mask(x.size(), x.device, node_mask)
             x = x + eps * args.augment_noise    
 
-        # print()
-        # wandb.log({"Max Coordinate After Canon": x.max()}, commit=False)
-
         x = remove_mean_with_mask(x, node_mask)
-        # if args.data_augmentation:
-            # x = utils.random_rotation(x).detach()
+        if args.data_augmentation:
+            x = utils.random_rotation(x).detach()
 
         check_mask_correct([x, one_hot, charges], node_mask)
         assert_mean_zero_with_mask(x, node_mask)
 
-        # remember to make the same change in test
         if break_sym:
             h = {'categorical': one_hot, 'integer': charges, 'continuous': x}
         else:
@@ -60,11 +56,6 @@ def train_epoch(args, loader, epoch, model, model_dp, model_ema, ema, device, dt
             context = None  
 
         optim.zero_grad()
-
-                
-        # canonicalize the inputs x to be SO(3) equivar
-        # if canonicalizer != None:
-        #     x = run_canonicalization(x, one_hot, charges, node_mask, device, canonicalizer)
 
         # transform batch through flow
         nll, reg_term, mean_abs_z = losses.compute_loss_and_nll(args, model_dp, nodes_dist,
@@ -156,12 +147,7 @@ def test(args, loader, epoch, eval_model, device, dtype, property_norms, nodes_d
                 assert_correctly_masked(context, node_mask)
             else:
                 context = None
-
-                    
-            # canonicalize the inputs x to be SO(3) equivar
-            if canonicalizer != None:
-                x = run_canonicalization(x, one_hot, charges, node_mask, device, canonicalizer)
-
+                
             # transform batch through flow
             nll, _, _ = losses.compute_loss_and_nll(args, eval_model, nodes_dist, x, h,
                                                     node_mask, edge_mask, context)

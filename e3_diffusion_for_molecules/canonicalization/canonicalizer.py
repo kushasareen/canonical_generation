@@ -60,11 +60,8 @@ class SO3_QM9(ContinuousGroupCanonicalization):
             h, x, edges, edge_attr, node_mask, edge_mask, n_nodes, batch = batch
         )
 
-        # wandb.log({"Max Rot Vector": rotation_vectors.max()}, commit=False)
-
         dense_x, _ = to_dense_batch(x, batch)
         rotation_matrix = self.modified_gram_schmidt(rotation_vectors, device=None, coords = dense_x)
-        # wandb.log({"Max Rot Matrix": rotation_matrix.max()}, commit=False)
 
         # Check whether canonicalization_info_dict is already defined
         if not hasattr(self, "canonicalization_info_dict"):
@@ -99,12 +96,8 @@ class SO3_QM9(ContinuousGroupCanonicalization):
 
         # Canonicalizes coordinates by rotating node coordinates.
         # Shape: (n_nodes * batch_size) x coord_dim.
-
-        # wandb.log({"Max Inv Rot Matrix": rotation_matrix_inverse.max()}, commit=False)
         
         canonical_loc = torch.bmm(x[:, None, :], rotation_matrix_inverse[batch]).squeeze()
-
-        # wandb.log({"Max Canonical Loc": canonical_loc.max()}, commit=False)
 
         return canonical_loc
 
@@ -148,46 +141,18 @@ class SO3_QM9(ContinuousGroupCanonicalization):
             print(vectors[i, :, 0])
             print(vectors[i, :, 1])
             
-            fig = plt.figure(figsize = (10, 7))
-            ax = plt.axes(projection ="3d")
+            # fig = plt.figure(figsize = (10, 7))
+            # ax = plt.axes(projection ="3d")
 
-            x = coords[i, :, 0].detach().cpu().numpy()
-            y = coords[i, :, 1].detach().cpu().numpy()
-            z = coords[i, :, 2].detach().cpu().numpy()
+            # x = coords[i, :, 0].detach().cpu().numpy()
+            # y = coords[i, :, 1].detach().cpu().numpy()
+            # z = coords[i, :, 2].detach().cpu().numpy()
 
-            ax.scatter3D(x, y, z, color = "green")            
-            plt.savefig('BIGPROBLEM2.png')
+            # ax.scatter3D(x, y, z, color = "green")            
+            # plt.savefig('problem.png')
             
             import sys
             sys.exit()
-            # print("V1")
-            # v1 = vectors[:, 0]
-            # print(v1) # SOMETIMES THIS OUTUPUTS ZERO... why?
-            # print(torch.norm(v1, dim=1, keepdim=True))
-            # v1 = v1 / torch.norm(v1, dim=1, keepdim=True)
-            # print(v1)
-
-            
-
-            # print("V2")
-            # print(vectors[:, 1])
-
-            # v2 = vectors[:, 1] - torch.sum(vectors[:, 1] * v1, dim=1, keepdim=True) * v1 # sometimes these are equal and this returns 0, causing numerical error later on, why?
-            # print(v2)
-            # print(torch.norm(v2, dim=1, keepdim=True))
-
-            # v2 = v2 / torch.norm(v2, dim=1, keepdim=True)
-            # print(v2)
-
-            # print("V3")
-            # print(vectors[:, 2])
-            # v3 = vectors[:, 2] - torch.sum(vectors[:, 2] * v1, dim=1, keepdim=True) * v1 # sometimes these are equal and this returns 0, why?
-            # print(v3)
-            # v3 = v3 - torch.sum(v3 * v2, dim=1, keepdim=True) * v2
-            # print(v3)
-            # print(torch.norm(v3, dim=1, keepdim=True))
-            # v3 = v3 / torch.norm(v3, dim=1, keepdim=True)
-            # print(v3)
 
 
         return torch.stack([v1, v2, v3], dim=1)

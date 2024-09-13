@@ -618,8 +618,6 @@ class EnVariationalDiffusion(torch.nn.Module):
                 x = run_canonicalization(x, h['categorical'], h['integer'], node_mask, node_mask.device, self.canonicalizer)
 
             xh = torch.cat([x, h['categorical'], h['integer']], dim=2)
-            # if self.break_sym:
-            #     xh = torch.cat([x, h['categorical'], h['integer'], h['continuous']], dim=2)
 
             # Sample z_t given x, h for timestep t, from q(z_t | x, h)
             z_t = alpha_t * xh + sigma_t * eps
@@ -631,6 +629,8 @@ class EnVariationalDiffusion(torch.nn.Module):
             # Compute the error.
             error = self.compute_error(net_out, gamma_t, eps)
         else:
+
+            # CODE FOR THE INVARIANT LOSS
             eps = self.sample_combined_position_feature_noise(
             n_samples=x.size(0), n_nodes=x.size(1), node_mask=node_mask)
 
@@ -638,8 +638,6 @@ class EnVariationalDiffusion(torch.nn.Module):
                 x = run_canonicalization(x, h['categorical'], h['integer'], node_mask, node_mask.device, self.canonicalizer)
 
             xh = torch.cat([x, h['categorical'], h['integer']], dim=2)
-            # if self.break_sym:
-            #     xh = torch.cat([x, h['categorical'], h['integer'], h['continuous']], dim=2)
 
             # Sample z_t given x, h for timestep t, from q(z_t | x, h)
             z_t = alpha_t * xh + sigma_t * eps
@@ -659,13 +657,12 @@ class EnVariationalDiffusion(torch.nn.Module):
             if self.canonicalizer != None:
                 z_bar_x = run_canonicalization(z_bar_x, h['categorical'], h['integer'], node_mask, node_mask.device, self.canonicalizer)
 
-            z_bar = torch.cat([z_bar_x, z_bar_h], dim=2) # i think this division will make it more stable
+            z_bar = torch.cat([z_bar_x, z_bar_h], dim=2)
 
             # Compute the error.
             error = self.compute_error(z_bar, gamma_t, xh)
             factor = ((alpha_t ** 2) / (sigma_t ** 2)).squeeze().squeeze()
             error = factor * error
-            # error = error * 0
 
         if self.training and self.loss_type == 'l2':
             SNR_weight = torch.ones_like(error)
