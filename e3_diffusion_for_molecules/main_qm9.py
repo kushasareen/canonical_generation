@@ -124,6 +124,7 @@ parser.add_argument('--canon_nf', type=int, default=16)
 parser.add_argument('--break_sym', action='store_true', default=False)
 parser.add_argument('--freeze', action='store_true', default=False, help = "Freezes canon weights")
 parser.add_argument('--canon_zt', action='store_true', default=False)
+parser.add_argument('--canon_sample', action='store_true', default=False)
 parser.add_argument('--loss_mode', type=int, default=1)
 
 
@@ -285,10 +286,9 @@ def main():
     best_nll_val = 1e8
     best_nll_test = 1e8
     for epoch in range(args.start_epoch, args.n_epochs):
-        # start with a test set 
-        # nll_val = test(args=args, loader=dataloaders['valid'], epoch=epoch, eval_model=model_ema_dp,
-        #         partition='Val', device=device, dtype=dtype, nodes_dist=nodes_dist,
-        #         property_norms=property_norms, canonicalizer=canonicalizer, break_sym=args.break_sym)
+        analyze_and_save(args=args, epoch=epoch, model_sample=model_ema, nodes_dist=nodes_dist,
+                            dataset_info=dataset_info, device=device,
+                            prop_dist=prop_dist, n_samples=args.n_stability_samples)
 
         start_epoch = time.time()
         train_epoch(args=args, loader=dataloaders['train'], epoch=epoch, model=model, model_dp=model_dp,

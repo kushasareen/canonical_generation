@@ -8,7 +8,7 @@ import wandb
 from torch_geometric.utils import to_dense_batch
 import matplotlib.pyplot as plt
 
-def run_canonicalization(x, hidden, node_mask, device, canonicalizer):
+def run_canonicalization(x, hidden, node_mask, device, canonicalizer, max_num_nodes = None):
     
     # need to first convert x and h into dense representation before doing the canonicalization
     batch_size = hidden.shape[0]
@@ -27,7 +27,7 @@ def run_canonicalization(x, hidden, node_mask, device, canonicalizer):
     x = canonicalizer(hidden, x, edges = edges, edge_attr = None, node_mask = flat_node_mask, edge_mask = None, n_nodes=n_nodes, batch = batch) # all of this should be in the sparse representation
 
     # convert x back to sparse representation
-    x, _ = to_dense_batch(x, batch)
+    x, _ = to_dense_batch(x, batch, max_num_nodes=max_num_nodes)
     
     return x
 
