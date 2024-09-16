@@ -119,7 +119,7 @@ class SO3_QM9(ContinuousGroupCanonicalization):
         v1 = v1 / torch.norm(v1, dim=1, keepdim=True)
         v2 = vectors[:, :, 1] - torch.sum(vectors[:, :, 1] * v1, dim=1, keepdim=True) * v1
         v2 = v2 / torch.norm(v2, dim=1, keepdim=True)
-        v3 = torch.cross(v1, v2) # replaces gram-schmidt
+        v3 = torch.linalg.cross(v1, v2) # replaces gram-schmidt
 
         if torch.isnan(v1.max()) or torch.isnan(v2.max()) or torch.isnan(v3.max()):
             # print("SHAPES")

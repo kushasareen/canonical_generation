@@ -236,13 +236,6 @@ if (not args.use_canon) or args.freeze:
     optim = get_optim(args, model)
 else:
     optim = get_optim(args, model, canonicalization_network)
-# print(model)
-# NEED TO FIX THIS IF I REMOVE CANON FROM THE GENERATIVE MODEL
-# optim = get_optim(args, model)
-
-# if args.freeze:
-#     for param in canonicalization_network.parameters():
-#         param.requires_grad = False
 
 gradnorm_queue = utils.Queue()
 gradnorm_queue.add(3000)  # Add large value that will be flushed.
@@ -286,10 +279,6 @@ def main():
     best_nll_val = 1e8
     best_nll_test = 1e8
     for epoch in range(args.start_epoch, args.n_epochs):
-        analyze_and_save(args=args, epoch=epoch, model_sample=model_ema, nodes_dist=nodes_dist,
-                            dataset_info=dataset_info, device=device,
-                            prop_dist=prop_dist, n_samples=args.n_stability_samples)
-
         start_epoch = time.time()
         train_epoch(args=args, loader=dataloaders['train'], epoch=epoch, model=model, model_dp=model_dp,
                     model_ema=model_ema, ema=ema, device=device, dtype=dtype, property_norms=property_norms,
