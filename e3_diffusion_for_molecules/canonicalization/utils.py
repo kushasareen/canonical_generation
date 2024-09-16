@@ -8,10 +8,9 @@ import wandb
 from torch_geometric.utils import to_dense_batch
 import matplotlib.pyplot as plt
 
-def run_canonicalization(x, one_hot, charges, node_mask, device, canonicalizer):
+def run_canonicalization(x, hidden, node_mask, device, canonicalizer):
     
     # need to first convert x and h into dense representation before doing the canonicalization
-    hidden = torch.cat((one_hot, charges), 2)
     batch_size = hidden.shape[0]
     max_nodes = hidden.shape[1]
 

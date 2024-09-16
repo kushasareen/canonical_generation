@@ -46,7 +46,8 @@ def get_model(args, device, dataset_info, dataloader_train, canonicalizer = None
             include_charges=args.include_charges,
             break_sym=args.break_sym,
             canonicalizer=canonicalizer,
-            double_canon=args.double_canon
+            loss_mode=args.loss_mode,
+            canon_zt=args.canon_zt
             )
 
         return vdm, nodes_dist, prop_dist

@@ -123,7 +123,8 @@ parser.add_argument('--canon_n_layers', type=int, default=3)
 parser.add_argument('--canon_nf', type=int, default=16)
 parser.add_argument('--break_sym', action='store_true', default=False)
 parser.add_argument('--freeze', action='store_true', default=False, help = "Freezes canon weights")
-parser.add_argument('--double_canon', action='store_true', default=False, help = "Invariant loss")
+parser.add_argument('--canon_zt', action='store_true', default=False)
+parser.add_argument('--loss_mode', type=int, default=1)
 
 
 args = parser.parse_args()

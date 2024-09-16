@@ -7,6 +7,7 @@ from torch.nn import functional as F
 from equivariant_diffusion import utils as diffusion_utils
 from canonicalization.utils import run_canonicalization
 import sys
+import wandb
 
 # Defining some useful util functions.
 def expm1(x: torch.Tensor) -> torch.Tensor:
@@ -259,7 +260,7 @@ class EnVariationalDiffusion(torch.nn.Module):
             dynamics: models.EGNN_dynamics_QM9, in_node_nf: int, n_dims: int,
             timesteps: int = 1000, parametrization='eps', noise_schedule='learned',
             noise_precision=1e-4, loss_type='vlb', norm_values=(1., 1., 1.),
-            norm_biases=(None, 0., 0.), include_charges=True, break_sym = False, canonicalizer = None, double_canon = True):
+            norm_biases=(None, 0., 0.), include_charges=True, break_sym = False, canonicalizer = None, loss_mode =1, canon_zt = False):
         super().__init__()
 
         assert loss_type in {'vlb', 'l2'}
@@ -289,7 +290,8 @@ class EnVariationalDiffusion(torch.nn.Module):
         self.parametrization = parametrization
 
         self.break_sym = break_sym
-        self.double_canon = double_canon
+        self.loss_mode = loss_mode
+        self.canon_zt = canon_zt
 
         self.norm_values = norm_values
         self.norm_biases = norm_biases
@@ -577,6 +579,33 @@ class EnVariationalDiffusion(torch.nn.Module):
 
         return log_p_xh_given_z
 
+    def get_denoised_sample(self, z_t, net_out, alpha_t, sigma_t):
+        net_out_x = net_out[:, :, :self.n_dims]
+        net_out_h = net_out[:, :, self.n_dims:]
+        z_t_x = z_t[:, :, :self.n_dims]
+        z_t_h = z_t[:, :, self.n_dims:]
+        z_tilde_h = (z_t_h - sigma_t * net_out_h) / alpha_t
+        z_tilde_x = (z_t_x - sigma_t * net_out_x)  / alpha_t
+        return z_tilde_x, z_tilde_h
+
+    def compute_invar_loss(self, z_t, xh_canon, net_out, alpha_t, sigma_t, node_mask, gamma_t):
+        z_tilde_x, z_tilde_h = self.get_denoised_sample(self, z_t, net_out, alpha_t, sigma_t)            
+        z_tilde = self.canon_split_vector(z_tilde_x, z_tilde_h, node_mask)
+        error_invar = self.compute_error(z_tilde, gamma_t, xh_canon)
+        factor = ((alpha_t ** 2) / (sigma_t ** 2)).squeeze().squeeze()
+        error_invar = factor * error_invar
+        return error_invar
+
+    def canon_vector(self, v, node_mask):
+        vx = v[:, :, :self.n_dims]
+        vh = v[:, :, self.n_dims:]
+        return self.canon_split_vector(vx, vh, node_mask)
+
+    def canon_split_vector(self, vx, vh, node_mask):
+        assert self.canonicalizer != None
+        vx = run_canonicalization(vx, vh, node_mask, node_mask.device, self.canonicalizer)
+        return torch.cat([vx, vh], dim = 2)
+
     def compute_loss(self, x, h, node_mask, edge_mask, context, t0_always):
         """Computes an estimator for the variational lower bound, or the simple loss (MSE)."""
 
@@ -608,61 +637,48 @@ class EnVariationalDiffusion(torch.nn.Module):
         alpha_t = self.alpha(gamma_t, x)
         sigma_t = self.sigma(gamma_t, x)
 
-        # Concatenate x, h[integer] and h[categorical].
-        if not self.double_canon:
-            # Sample zt ~ Normal(alpha_t x, sigma_t)
-            eps = self.sample_combined_position_feature_noise(
-            n_samples=x.size(0), n_nodes=x.size(1), node_mask=node_mask)
+        # Sample zt ~ Normal(alpha_t x, sigma_t)
+        eps = self.sample_combined_position_feature_noise(
+        n_samples=x.size(0), n_nodes=x.size(1), node_mask=node_mask)
+        xh = torch.cat([x, h['categorical'], h['integer']], dim=2)
+        hidden = torch.cat([h['categorical'], h['integer']], dim=2)
 
-            if self.canonicalizer != None:
-                x = run_canonicalization(x, h['categorical'], h['integer'], node_mask, node_mask.device, self.canonicalizer)
-
-            xh = torch.cat([x, h['categorical'], h['integer']], dim=2)
-
-            # Sample z_t given x, h for timestep t, from q(z_t | x, h)
-            z_t = alpha_t * xh + sigma_t * eps
-            diffusion_utils.assert_mean_zero_with_mask(z_t[:, :, :self.n_dims], node_mask)
-
-            # Neural net prediction.
-            net_out = self.phi(z_t, t, node_mask, edge_mask, context)
-
-            # Compute the error.
-            error = self.compute_error(net_out, gamma_t, eps)
+        if self.canonicalizer != None:
+            x_canon = self.canon_split_vector(x, hidden, node_mask)
         else:
+            xh_canon = xh
 
-            # CODE FOR THE INVARIANT LOSS
-            eps = self.sample_combined_position_feature_noise(
-            n_samples=x.size(0), n_nodes=x.size(1), node_mask=node_mask)
-
-            if self.canonicalizer != None:
-                x = run_canonicalization(x, h['categorical'], h['integer'], node_mask, node_mask.device, self.canonicalizer)
-
-            xh = torch.cat([x, h['categorical'], h['integer']], dim=2)
-
-            # Sample z_t given x, h for timestep t, from q(z_t | x, h)
-            z_t = alpha_t * xh + sigma_t * eps
+        if self.loss_mode == 1: # STANDARD NOISE LOS)S w/ CANON
+            z_t = alpha_t * xh_canon + sigma_t * eps
+            if self.canon_zt: z_t = self.canon_vector(z_t, node_mask)
             diffusion_utils.assert_mean_zero_with_mask(z_t[:, :, :self.n_dims], node_mask)
+            net_out = self.phi(z_t, t, node_mask, edge_mask, context)
+            error = self.compute_error(net_out, gamma_t, eps)
 
-            # Neural net prediction.
-            net_out = self.phi(z_t, t, node_mask, edge_mask, context) # need to split this
+        elif self.loss_mode == 2: # INVARIANT LOSS
+            z_t = alpha_t * xh + sigma_t * eps # NOTICE NOT NOISING XH CANON
+            if self.canon_zt: z_t = self.canon_vector(z_t, node_mask)
+            diffusion_utils.assert_mean_zero_with_mask(z_t[:, :, :self.n_dims], node_mask)
+            net_out = self.phi(z_t, t, node_mask, edge_mask, context)
+            error_eps = self.compute_error(net_out, gamma_t, eps)
+            error_invar = self.compute_invar_loss(self, z_t, xh_canon, net_out, alpha_t, sigma_t, node_mask, gamma_t)
+            error = torch.Tensor([min(error_invar.item(), error_eps.item())])
 
-            net_out_x = net_out[:, :, :3]
-            net_out_h = net_out[:, :, 3:]
-            z_t_x = z_t[:, :, :3]
-            z_t_h = z_t[:, :, 3:]
+            wandb.log({"Invar Loss - Regular Loss": error_invar.item()-error_eps.item()}, commit=False)
 
-            z_bar_h = (z_t_h - sigma_t * net_out_h) / alpha_t
-            z_bar_x = (z_t_x - sigma_t * net_out_x)  / alpha_t
+        elif self.loss_mode == 3: #  INVARIANT LOSS + CANON
+            z_t = alpha_t * xh_canon + sigma_t * eps
+            if self.canon_zt: z_t = self.canon_vector(z_t, node_mask)
+            diffusion_utils.assert_mean_zero_with_mask(z_t[:, :, :self.n_dims], node_mask)
+            net_out = self.phi(z_t, t, node_mask, edge_mask, context)
+            error_eps = self.compute_error(net_out, gamma_t, eps)
+            error_invar = self.compute_invar_loss(self, z_t, xh_canon, net_out, alpha_t, sigma_t, node_mask, gamma_t)
+            error = torch.Tensor([min(error_invar.item(), error_eps.item())])
 
-            if self.canonicalizer != None:
-                z_bar_x = run_canonicalization(z_bar_x, h['categorical'], h['integer'], node_mask, node_mask.device, self.canonicalizer)
+            wandb.log({"Invar Loss - Regular Loss": error_invar.item()-error_eps.item()}, commit=False)
 
-            z_bar = torch.cat([z_bar_x, z_bar_h], dim=2)
-
-            # Compute the error.
-            error = self.compute_error(z_bar, gamma_t, xh)
-            factor = ((alpha_t ** 2) / (sigma_t ** 2)).squeeze().squeeze()
-            error = factor * error
+        else:
+            raise error("Invalid loss mode.")
 
         if self.training and self.loss_type == 'l2':
             SNR_weight = torch.ones_like(error)
