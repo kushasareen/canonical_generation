@@ -65,7 +65,8 @@ def get_optim(args, generative_model, canonicalization_network = None):
         params += [{"params": generative_model.canonicalizer.parameters(), "lr": args.lr*1e-2}]
         print("Using an optimized canonicalizer")
         print(params)
-        
+    else:
+        params = generative_model.parameters() # not needed, doing just as a safety
 
     optim = torch.optim.AdamW(
         params,

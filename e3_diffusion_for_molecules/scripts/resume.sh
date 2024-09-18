@@ -23,5 +23,16 @@ module load python/3.10
 source .venv/bin/activate
 cd /home/mila/k/kusha.sareen/molecule_generation/e3_diffusion_for_molecules/
 unset CUDA_VISIBLE_DEVICES
+
+exit_script() {
+
+    echo "Preemption signal, saving myself"
+    trap - SIGTERM # clear the trap
+    python main_qm9.py --resume "outputs/${name}" --lr ${lr} --exp_name $name
+    kill -- -$$
+
+}
+trap exit_script SIGTERM
+
 python main_qm9.py --resume "outputs/${name}" --start_epoch ${epoch} --lr ${lr} --exp_name $name
 EOT

@@ -1,8 +1,8 @@
 #!/bin/bash
 
 #SBATCH --partition=long
-#SBATCH --job-name=edm
-#SBATCH --output="logs/%j_edm.txt"
+#SBATCH --job-name=edm2
+#SBATCH --output="logs/%j_edm2.txt"
 #SBATCH --gres=gpu:1
 #SBATCH --mem=32G
 #SBATCH --cpus-per-task=4
@@ -11,4 +11,14 @@ module load python/3.10
 source .venv/bin/activate
 cd /home/mila/k/kusha.sareen/molecule_generation/e3_diffusion_for_molecules/
 unset CUDA_VISIBLE_DEVICES
-python main_qm9.py --n_epochs 3000 --exp_name edm --n_stability_samples 1000 --diffusion_noise_schedule polynomial_2 --diffusion_noise_precision 1e-5 --diffusion_steps 1000 --diffusion_loss_type l2 --batch_size 64 --nf 256 --n_layers 9 --lr 4e-4 --normalize_factors [1,4,10] --test_epochs 20 --ema_decay 0.9999 --model egnn_dynamics
+exit_script() {
+
+    echo "Preemption signal, saving myself"
+    trap - SIGTERM # clear the trap
+    python main_qm9.py --resume "outputs/edm2" --lr 1e-4 --exp_name edm2
+    kill -- -$$
+
+}
+trap exit_script SIGTERM
+
+python main_qm9.py --n_epochs 3000 --exp_name edm2 --n_stability_samples 1000 --diffusion_noise_schedule polynomial_2 --diffusion_noise_precision 1e-5 --diffusion_steps 1000 --diffusion_loss_type l2 --batch_size 64 --nf 256 --n_layers 9 --lr 1e-4 --normalize_factors [1,4,10] --test_epochs 20 --ema_decay 0.9999

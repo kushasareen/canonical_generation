@@ -581,17 +581,11 @@ class EnVariationalDiffusion(torch.nn.Module):
         return log_p_xh_given_z
 
     def get_denoised_sample(self, z_t, net_out, alpha_t, sigma_t):
-        net_out_x = net_out[:, :, :self.n_dims]
-        net_out_h = net_out[:, :, self.n_dims:]
-        z_t_x = z_t[:, :, :self.n_dims]
-        z_t_h = z_t[:, :, self.n_dims:]
-        z_tilde_h = (z_t_h - sigma_t * net_out_h) / alpha_t
-        z_tilde_x = (z_t_x - sigma_t * net_out_x)  / alpha_t
-        return z_tilde_x, z_tilde_h
+        return (z_t - sigma_t * net_out) / alpha_t
 
     def compute_invar_loss(self, z_t, xh_canon, net_out, alpha_t, sigma_t, node_mask, gamma_t):
-        z_tilde_x, z_tilde_h = self.get_denoised_sample(z_t, net_out, alpha_t, sigma_t)            
-        z_tilde = self.canon_split_vector(z_tilde_x, z_tilde_h, node_mask)
+        z_tilde = self.get_denoised_sample(z_t, net_out, alpha_t, sigma_t)            
+        z_tilde = self.canon_vector(z_tilde, node_mask)
         error_invar = self.compute_error(z_tilde, gamma_t, xh_canon)
         factor = ((alpha_t ** 2) / (sigma_t ** 2)).squeeze().squeeze()
         error_invar = factor * error_invar
@@ -649,7 +643,7 @@ class EnVariationalDiffusion(torch.nn.Module):
         else:
             xh_canon = xh
 
-        if self.loss_mode == 1: # STANDARD NOISE LOS)S w/ CANON
+        if self.loss_mode == 1: # STANDARD NOISE LOSS w/ CANON
             z_t = alpha_t * xh_canon + sigma_t * eps
             if self.canon_zt: z_t = self.canon_vector(z_t, node_mask)
             diffusion_utils.assert_mean_zero_with_mask(z_t[:, :, :self.n_dims], node_mask)
