@@ -15,7 +15,7 @@ exit_script() {
 
     echo "Preemption signal, saving myself"
     trap - SIGTERM # clear the trap
-    python main_qm9.py --resume "outputs/canon2" --lr 1e-4 --exp_name canon2
+    bash scripts/resume.sh -n canon2 -r 1e-4
     kill -- -$$
 
 }

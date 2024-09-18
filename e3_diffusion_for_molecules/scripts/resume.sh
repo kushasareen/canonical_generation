@@ -3,7 +3,6 @@ while getopts n:e:r: flag
 do
     case "${flag}" in
         n) name=${OPTARG};;
-        e) epoch=${OPTARG};;
         r) lr=${OPTARG};;
 
     esac
@@ -28,11 +27,11 @@ exit_script() {
 
     echo "Preemption signal, saving myself"
     trap - SIGTERM # clear the trap
-    python main_qm9.py --resume "outputs/${name}" --lr ${lr} --exp_name $name
+    bash scripts/resume.sh -n ${name}_resume -r ${lr}
     kill -- -$$
 
 }
 trap exit_script SIGTERM
 
-python main_qm9.py --resume "outputs/${name}" --start_epoch ${epoch} --lr ${lr} --exp_name $name
+python main_qm9.py --resume "outputs/${name}" --lr ${lr} --exp_name $name
 EOT
